@@ -23,10 +23,13 @@ add_executable(analysis src/analysis.c)
 target_link_libraries(analysis PRIVATE dyn_array)
 
 #Compile the tester executable
-add_executable(${PROJECT_NAME}_test ${CMAKE_CURRENT_SOURCE_DIR}/test/tests.cpp)
+add_executable(${PROJECT_NAME}_test 
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/process_scheduling.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dyn_array.c
+)
 
 target_compile_definitions(${PROJECT_NAME}_test PRIVATE)
 
 #Link ${PROJECT_NAME}_test with dyn_array and gtest and pthread libraries
 target_link_libraries(${PROJECT_NAME}_test gtest pthread dyn_array)
-
