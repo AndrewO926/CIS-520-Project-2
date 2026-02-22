@@ -82,8 +82,45 @@ bool round_robin(dyn_array_t *ready_queue, ScheduleResult_t *result, size_t quan
 
 dyn_array_t *load_process_control_blocks(const char *input_file) 
 {
-	UNUSED(input_file);
-	return NULL;
+	if (input_file == NULL) return NULL;
+ 
+    FILE *fp = fopen(input_file, "rb");
+    if (!fp) return NULL;
+ 
+    uint32_t n = 0;
+    if (fread(&n, sizeof(uint32_t), 1, fp) != 1) {
+        fclose(fp);
+        return NULL;
+    }
+ 
+    dyn_array_t *arr = dyn_array_create(n, sizeof(ProcessControlBlock_t), NULL);
+    if (!arr) {
+        fclose(fp);
+        return NULL;
+    }
+ 
+    for (uint32_t i = 0; i < n; i++) {
+        ProcessControlBlock_t pcb;
+ 
+        if (fread(&pcb.remaining_burst_time, sizeof(uint32_t), 1, fp) != 1 ||
+            fread(&pcb.priority,            sizeof(uint32_t), 1, fp) != 1 ||
+            fread(&pcb.arrival,             sizeof(uint32_t), 1, fp) != 1) {
+            dyn_array_destroy(arr);
+            fclose(fp);
+            return NULL;
+        }
+ 
+        pcb.started = false;
+ 
+        if (!dyn_array_push_back(arr, &pcb)) {
+            dyn_array_destroy(arr);
+            fclose(fp);
+            return NULL;
+        }
+    }
+ 
+    fclose(fp);
+    return arr;
 }
 
 bool shortest_remaining_time_first(dyn_array_t *ready_queue, ScheduleResult_t *result) 
