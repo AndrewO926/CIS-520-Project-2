@@ -84,42 +84,47 @@ dyn_array_t *load_process_control_blocks(const char *input_file)
 {
 	if (input_file == NULL) return NULL;
  
-    FILE *fp = fopen(input_file, "rb");
-    if (!fp) return NULL;
+    int fd = open(input_file, O_RDONLY);
+    if (fd < 0) return NULL;
  
     uint32_t n = 0;
-    if (fread(&n, sizeof(uint32_t), 1, fp) != 1) {
-        fclose(fp);
+    if (!read_exact(fd, &n, sizeof(uint32_t)))
+    {
+        close(fd);
         return NULL;
     }
  
     dyn_array_t *arr = dyn_array_create(n, sizeof(ProcessControlBlock_t), NULL);
-    if (!arr) {
-        fclose(fp);
+    if (arr == NULL)
+    {
+        close(fd);
         return NULL;
     }
  
-    for (uint32_t i = 0; i < n; i++) {
+    for (uint32_t i = 0; i < n; i++)
+    {
         ProcessControlBlock_t pcb;
  
-        if (fread(&pcb.remaining_burst_time, sizeof(uint32_t), 1, fp) != 1 ||
-            fread(&pcb.priority,            sizeof(uint32_t), 1, fp) != 1 ||
-            fread(&pcb.arrival,             sizeof(uint32_t), 1, fp) != 1) {
+        if (!read_exact(fd, &pcb.remaining_burst_time, sizeof(uint32_t)) ||
+            !read_exact(fd, &pcb.priority,            sizeof(uint32_t)) ||
+            !read_exact(fd, &pcb.arrival,             sizeof(uint32_t)))
+        {
             dyn_array_destroy(arr);
-            fclose(fp);
+            close(fd);
             return NULL;
         }
  
         pcb.started = false;
  
-        if (!dyn_array_push_back(arr, &pcb)) {
+        if (!dyn_array_push_back(arr, &pcb))
+        {
             dyn_array_destroy(arr);
-            fclose(fp);
+            close(fd);
             return NULL;
         }
     }
  
-    fclose(fp);
+    close(fd);
     return arr;
 }
 
