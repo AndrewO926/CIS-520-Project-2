@@ -1,3 +1,4 @@
+
 #ALL OF THE SPECIFIED NAMES IN THIS CMAKE ARE REQUIRED.
 #Set the project name variable to hw2.
 #THIS IS REQUIRED
@@ -17,13 +18,13 @@ add_library(dyn_array STATIC src/dyn_array.c)
 target_include_directories(dyn_array PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 #Compile the analysis executable
-add_executable(analysis src/analysis.c)
+add_executable(analysis src/analysis.c src/process_scheduling.c)
 
 #link the dyn_array library we compiled against our analysis executable
 target_link_libraries(analysis PRIVATE dyn_array)
 
 #Compile the tester executable
-add_executable(${PROJECT_NAME}_test 
+add_executable(${PROJECT_NAME}_test
     ${CMAKE_CURRENT_SOURCE_DIR}/test/tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/process_scheduling.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dyn_array.c
@@ -33,3 +34,4 @@ target_compile_definitions(${PROJECT_NAME}_test PRIVATE)
 
 #Link ${PROJECT_NAME}_test with dyn_array and gtest and pthread libraries
 target_link_libraries(${PROJECT_NAME}_test gtest pthread dyn_array)
+
