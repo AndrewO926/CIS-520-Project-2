@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdint.h>
 
 #include "dyn_array.h"
 #include "processing_scheduling.h"
@@ -11,14 +12,54 @@
 // remove it before you submit. Just allows things to compile initially.
 #define UNUSED(x) (void)(x)
 
+// Compares the arrival time of one pcb with another. results in increasing order
 static int compare_arrival(const void* a, const void* b)
 {
-	const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
-	const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
+	int result1;
+	int result2;
 
-	if (p1->arrival < p2->arrival) { return -1; }
-	if (p1->arrival > p2->arrival) { return 1; }
-	return 0;
+	if (a == NULL) { result1 = 0; }
+	else
+	{
+		const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
+		result1 = p1->arrival;
+	}
+
+	if (b == NULL) { result2 = 0; }
+	else
+	{
+		const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
+		result2 = p2->arrival;
+	}
+	
+	if (result1 > result2) { return 1; }
+	if (result1 < result2) {return -1; }
+	else { return 0; }
+}
+
+// Compares the remaining burst time of one pcb with another. results in increasing order
+static int compare_remaining_time(const void* a, const void* b)
+{
+	int result1;
+	int result2;
+
+	if (a == NULL) { result1 = 0; }
+	else
+	{
+		const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
+		result1 = p1->remaining_burst_time;
+	}
+
+	if (b == NULL) { result2 = 0; }
+	else
+	{
+		const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
+		result2 = p2->remaining_burst_time;
+	}
+
+	if (result1 > result2) { return 1; }
+	if (result1 < result2) { return -1; }
+	else { return 0; }
 }
 
 // private function
@@ -28,27 +69,32 @@ void virtual_cpu(ProcessControlBlock_t *process_control_block)
 	--process_control_block->remaining_burst_time;
 }
 
-bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result) 
+bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
 {
 	if (ready_queue == NULL || result == NULL) { return false; }
 	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
 	size_t number_of_processes = dyn_array_size(ready_queue);
 
-	dyn_array_sort(ready_queue, compare_arrival); // Sort ready_queue by arrival time
+	dyn_array_sort(ready_queue, compare_arrival); // Sort ready_queue by increasing arrival time
 
 	// Calculate and populate ScheduleResult_t fields
 	float total_waiting_time = 0;
 	float total_turnaround_time = 0;
 	float current_time = 0;
-	for (size_t i = 0; i < number_of_processes; i++)
+
+	while (!dyn_array_empty(ready_queue))
 	{
-		ProcessControlBlock_t* pcb = (ProcessControlBlock_t*)dyn_array_at(ready_queue, i);
-		pcb->started = true;
+		ProcessControlBlock_t* pcb;
+		if (!dyn_array_extract_front(ready_queue, pcb)) { return false; }
+		if (pcb == NULL) { return false; }
+
+		// If the next process hasn't arrived yet, wait for it
 		if (current_time < pcb->arrival) { current_time = pcb->arrival; }
+
 		total_waiting_time += current_time - pcb->arrival;
 		total_turnaround_time += current_time - pcb->arrival + pcb->remaining_burst_time;
 		current_time += pcb->remaining_burst_time;
-		pcb->remaining_burst_time = 0;
+		free(pcb);
 	}
 
 	result->average_waiting_time = total_waiting_time / number_of_processes;
@@ -60,9 +106,47 @@ bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
 
 bool shortest_job_first(dyn_array_t *ready_queue, ScheduleResult_t *result) 
 {
-	UNUSED(ready_queue);
-	UNUSED(result);
-	return false;
+	if (ready_queue == NULL || result == NULL) { return false; }
+	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
+	size_t number_of_processes = dyn_array_size(ready_queue);
+	
+	if (!dyn_array_sort(ready_queue, compare_remaining_time)) { return false; } // Sort ready_queue by increasing remaining burst time
+
+	float total_waiting_time = 0;
+	float total_turnaround_time = 0;
+	float current_time = 0;
+
+	while (!dyn_array_empty(ready_queue))
+	{
+		for (size_t i = 0; uint32_t earliest_arrival = UINT32_MAX; i < dyn_array_size(ready_queue); i++)
+		{
+			ProcessControlBlock_t* pcb = (ProcessControlBlock_t*)dyn_array_at(ready_queue, i);
+			if (pcb == NULL) { return false; }
+			earliest_arrival = earliest_arrival < pcb->arrival ? earliest_arrival : pcb->arrival;
+
+			// A process is ready and can be run
+			if (pcb->arrival <= current_time)
+			{
+				total_waiting_time += current_time - pcb->arrival;
+				total_turnaround_time += current_time - pcb->arrival + pcb->remaining_burst_time;
+				current_time += pcb->remaining_burst_time;
+				process_scheduled = true;
+				break;
+			}
+		}
+
+		// The queue is empty, wait for a process to arrive
+		if (earliest_arrival > current_time)
+		{
+			current_time = earliest_arrival;
+		}
+
+		result->average_waiting_time = total_waiting_time / number_of_processes;
+		result->average_turnaround_time = total_turnaround_time / number_of_processes;
+		result->total_run_time = current_time;
+
+		return true;
+	}
 }
 
 bool priority(dyn_array_t *ready_queue, ScheduleResult_t *result) 
