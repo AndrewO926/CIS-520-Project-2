@@ -78,6 +78,70 @@ TEST(first_come_first_serve, ValidInput){
 	dyn_array_destroy(ptr);
 }
 
+TEST(first_come_first_serve, CalculationCheck1) {
+  ProcessControlBlock_t one;
+	one.arrival = 0;
+	one.remaining_burst_time = 5;
+	one.started = false;
+	one.priority = 1;
+
+	ProcessControlBlock_t two;
+	two.arrival = 0;
+	two.remaining_burst_time = 3;
+	two.started = false;
+	two.priority = 1;
+
+	ProcessControlBlock_t three;
+	three.arrival = 0;
+	three.remaining_burst_time = 8;
+	three.started = false;
+	three.priority = 1;
+  
+  dyn_array_t *ptr = dyn_array_create(3, sizeof(ProcessControlBlock_t), NULL);
+	dyn_array_push_back(ptr, &one);
+	dyn_array_push_back(ptr, &two);
+	dyn_array_push_back(ptr, &three);
+
+	ScheduleResult_t times;
+	ASSERT_TRUE(first_come_first_serve(ptr, &times)) << "fcfs was false expected true";
+	ASSERT_NEAR(9.67, times.average_turnaround_time, .01);
+	ASSERT_NEAR(4.33, times.average_waiting_time, .01);
+  ASSERT_NEAR(16, times.total_run_time, .01);
+	dyn_array_destroy(ptr);
+}
+
+TEST(first_come_first_serve, CalculationCheck2) {
+  ProcessControlBlock_t one;
+	one.arrival = 2;
+	one.remaining_burst_time = 5;
+	one.started = false;
+	one.priority = 1;
+
+	ProcessControlBlock_t two;
+	two.arrival = 0;
+	two.remaining_burst_time = 3;
+	two.started = false;
+	two.priority = 1;
+
+	ProcessControlBlock_t three;
+	three.arrival = 4;
+	three.remaining_burst_time = 4;
+	three.started = false;
+	three.priority = 1;
+  
+  dyn_array_t *ptr = dyn_array_create(3, sizeof(ProcessControlBlock_t), NULL);
+	dyn_array_push_back(ptr, &one);
+	dyn_array_push_back(ptr, &two);
+	dyn_array_push_back(ptr, &three);
+
+	ScheduleResult_t times;
+	ASSERT_TRUE(first_come_first_serve(ptr, &times)) << "fcfs was false expected true";
+	ASSERT_NEAR(5.67, times.average_turnaround_time, .01);
+	ASSERT_NEAR(1.67, times.average_waiting_time, .01);
+  ASSERT_NEAR(12, times.total_run_time, .01);
+	dyn_array_destroy(ptr);
+}
+
 //Test round robin
 TEST(round_robin, emptyQueue) {
 	ScheduleResult_t times;
@@ -174,12 +238,12 @@ TEST(round_robin, CalculationCheck2){
 }
 
 //Test shortest job first
-TEST(shortest_job_first, EmptyQueue) {
+TEST(shortest_job_first, sjfEmptyQueue) {
 	ScheduleResult_t times;
 	ASSERT_FALSE(shortest_job_first(nullptr, &times)) << "should return false for empty queue";
 }
 
-TEST(shortest_job_first, NullSchedule) {
+TEST(shortest_job_first, sjfNullSchedule) {
   ProcessControlBlock_t one;
 	one.arrival = 0;
 	one.remaining_burst_time = 4;
@@ -248,8 +312,8 @@ TEST(shortest_job_first, CalculationCheck1){
 
 	ScheduleResult_t times;
 	ASSERT_TRUE(shortest_job_first(ptr, &times)) << "sjf was false, expected true";
-	ASSERT_NEAR(4.8, times.average_turnaround_time, .01);
-	ASSERT_NEAR(9.8, times.average_waiting_time, .01);
+	ASSERT_NEAR(9.8, times.average_turnaround_time, .01);
+	ASSERT_NEAR(5.2, times.average_waiting_time, .01);
   ASSERT_NEAR(23, times.total_run_time, .01);
 	dyn_array_destroy(ptr);
 }
