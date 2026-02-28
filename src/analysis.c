@@ -47,6 +47,16 @@ int main(int argc, char **argv)
 				return EXIT_FAILURE;
 		}
 	}
+	else if (strcmp(algorithm, SJF) == 0)
+	{
+		bool success = shortest_job_first(ready_queue, &times);
+		if (!success)
+		{
+			printf("Shortest job first failed\n");
+			dyn_array_destroy(ready_queue);
+			return EXIT_FAILURE;
+		}
+	}
 
 	printf("Average waiting time: %f\n", times.average_waiting_time);
 	printf("Average turnaround time: %f\n", times.average_turnaround_time);

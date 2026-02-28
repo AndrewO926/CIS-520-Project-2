@@ -124,7 +124,8 @@ bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
 	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
 	size_t number_of_processes = dyn_array_size(ready_queue);
 
-	dyn_array_sort(ready_queue, compare_arrival_ascending); // Sort ready_queue by increasing arrival time
+	dyn_array_sort(ready_queue, compare_arrival_descending); // Sort ready_queue by decreasing arrival time
+	// This is done because popping from the back is less expensive than the front
 
 	// Calculate and populate ScheduleResult_t fields
 	float total_waiting_time = 0;
@@ -134,7 +135,7 @@ bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
 	while (!dyn_array_empty(ready_queue))
 	{
 		ProcessControlBlock_t pcb;
-		if (!dyn_array_extract_front(ready_queue, &pcb)) { return false; }
+		if (!dyn_array_extract_back(ready_queue, &pcb)) { return false; }
 
 		// If the next process hasn't arrived yet, wait for it
 		if (current_time < pcb.arrival) { current_time = pcb.arrival; }
