@@ -62,6 +62,34 @@ static int compare_remaining_time(const void* a, const void* b)
 	else { return 0; }
 }
 
+static int reverse_sort(const void* a, const void* b)
+{
+	const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
+	const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
+
+	if (p1->arrival < p2->arrival) { return 1; }
+	if (p1->arrival > p2->arrival) { return -1; }
+	return 0;
+}
+
+//I needed a way to requeue objects for round robin where it factors in if the object has arrived or not.
+//Basically, this should place the element in front of the stuff that isn't here yet and behind the stuff that is
+static void requeue_correctly(dyn_array_t* array, size_t array_size, ProcessControlBlock_t* insertElement, float curTime){
+    if(array_size == 0){ 
+        dyn_array_push_back(array, insertElement);
+        return; 
+    }
+    for(size_t i = 0; i < array_size; i++){
+        ProcessControlBlock_t* ele = (ProcessControlBlock_t*)dyn_array_at(array, i);
+        //If the element is already here and in queue, place element behind it
+        if(ele->arrival <= curTime){
+            dyn_array_insert(array, i, insertElement);
+            return;
+        }
+    }
+    dyn_array_push_back(array, insertElement);
+}
+
 // private function
 void virtual_cpu(ProcessControlBlock_t *process_control_block) 
 {
@@ -69,7 +97,33 @@ void virtual_cpu(ProcessControlBlock_t *process_control_block)
 	--process_control_block->remaining_burst_time;
 }
 
-bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
+static bool read_exact(int fd, void *buffer, size_t bytes)
+
+{
+
+    size_t total = 0;
+
+    ssize_t n;
+
+    while (total < bytes) {
+
+        n = read(fd, (char*)buffer + total, bytes - total);
+
+        if (n <= 0) {
+
+            return false;  // error or EOF
+
+        }
+
+        total += n;
+
+    }
+
+    return true;
+
+}
+ 
+bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result) 
 {
 	if (ready_queue == NULL || result == NULL) { return false; }
 	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
@@ -158,10 +212,72 @@ bool priority(dyn_array_t *ready_queue, ScheduleResult_t *result)
 
 bool round_robin(dyn_array_t *ready_queue, ScheduleResult_t *result, size_t quantum) 
 {
-	UNUSED(ready_queue);
-	UNUSED(result);
-	UNUSED(quantum);
-	return false;
+    if (ready_queue == NULL || result == NULL || quantum == 0) { return false; }
+	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
+	size_t number_of_processes = dyn_array_size(ready_queue);
+
+    dyn_array_sort(ready_queue, reverse_sort); // Sort ready_queue in reverse by arrival time
+
+	float total_turnaround_time = 0;
+    float total_burst_time = 0;
+	float current_time = 0;
+
+    // We want to iterate and run each process until all processes are done
+    while(!dyn_array_empty(ready_queue)){
+        ProcessControlBlock_t pcb;
+        dyn_array_extract_back(ready_queue, &pcb);
+
+        //rev our engines (start)
+        pcb.started = true;
+
+        //Calculate wait time
+        if(pcb.arrival > current_time) { current_time = pcb.arrival; }
+
+        // Variable to check if the current process needs to run again
+        bool keepRunning = true;
+
+        while(keepRunning){
+            // If the burst time is lower than the quantum, use burst time
+            if(pcb.remaining_burst_time <= quantum){
+
+                current_time += pcb.remaining_burst_time;
+
+                //Need this to calculate waiting time
+                total_burst_time += pcb.remaining_burst_time;
+
+                //Turnaround should just be total time since it arrived
+                total_turnaround_time += current_time - pcb.arrival;
+
+                pcb.started = false;
+                keepRunning = false;
+            } else {
+                //Increment current_time, total burst time, and decrement remaining burst
+                current_time += quantum;
+                total_burst_time += quantum;
+                pcb.remaining_burst_time -= quantum;
+
+                // Need to check array size so as to not grab at an empty array
+                size_t arr_size = dyn_array_size(ready_queue);
+                if(arr_size > 0) {
+                    //Check if anyone is waiting to go.
+                    ProcessControlBlock_t* nextEle = (ProcessControlBlock_t*)dyn_array_at(ready_queue, arr_size - 1);
+                    if(nextEle->arrival <= current_time){
+                        pcb.started = false;
+                        //Add node back to the front of the queue
+                        requeue_correctly(ready_queue, arr_size, &pcb, current_time);
+                        keepRunning = false;
+                    }
+                }
+            }
+        }
+    }
+
+	result->average_turnaround_time = total_turnaround_time / number_of_processes;
+    //Calculate wait time based off total turnaround and burst time
+    result->average_waiting_time = (total_turnaround_time - total_burst_time) / number_of_processes;
+	result->total_run_time = current_time;
+    
+	return true;
 }
 
 dyn_array_t *load_process_control_blocks(const char *input_file) 
