@@ -6,6 +6,8 @@
 #include "dyn_array.h"
 #include "processing_scheduling.h"
 
+static bool read_exact(int fd, void *buffer, size_t bytes);
+
 
 // You might find this handy.  I put it around unused parameters, but you should
 // remove it before you submit. Just allows things to compile initially.
@@ -26,6 +28,22 @@ void virtual_cpu(ProcessControlBlock_t *process_control_block)
 {
 	// decrement the burst time of the pcb
 	--process_control_block->remaining_burst_time;
+}
+
+static bool read_exact(int fd, void *buffer, size_t bytes)
+{
+    size_t total = 0;
+    ssize_t n;
+
+    while (total < bytes) {
+        n = read(fd, (char*)buffer + total, bytes - total);
+        if (n <= 0) {
+            return false;  // error or EOF
+        }
+        total += (size_t)n;
+    }
+
+    return true;
 }
 
 bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result) 
