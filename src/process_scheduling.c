@@ -11,10 +11,6 @@
 static bool read_exact(int fd, void *buffer, size_t bytes);
 
 
-// You might find this handy.  I put it around unused parameters, but you should
-// remove it before you submit. Just allows things to compile initially.
-#define UNUSED(x) (void)(x)
-
 // Compares the arrival time of one pcb with another. results in increasing order
 static int compare_arrival_ascending(const void* a, const void* b)
 {

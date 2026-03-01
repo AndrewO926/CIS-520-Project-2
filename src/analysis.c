@@ -47,9 +47,27 @@ int main(int argc, char **argv)
 				return EXIT_FAILURE;
 		}
 	}
-	else if (strcmp(algorithm, SJF) == 0)
+	else if(strcmp(algorithm, SJF) == 0)
 	{
 		bool success = shortest_job_first(ready_queue, &times);
+		if (!success)
+		{
+			printf("Shortest job first failed\n");
+			dyn_array_destroy(ready_queue);
+			return EXIT_FAILURE;
+		}
+	}
+	else if(strcmp(algorithm, P) == 0){
+		bool success = priority(ready_queue, &times);
+		if (!success)
+		{
+			printf("Shortest job first failed\n");
+			dyn_array_destroy(ready_queue);
+			return EXIT_FAILURE;
+		}
+	}
+	else if(strcmp(algorithm, SRT) == 0){
+		bool success = shortest_remaining_time_first(ready_queue, &times);
 		if (!success)
 		{
 			printf("Shortest job first failed\n");
