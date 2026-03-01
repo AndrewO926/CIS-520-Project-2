@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #include "dyn_array.h"
 #include "processing_scheduling.h"
@@ -42,31 +43,6 @@ static int compare_arrival_ascending(const void* a, const void* b)
 static int compare_arrival_descending(const void* a, const void* b)
 {
 	return -1 * compare_arrival_ascending(a, b);
-}
-
-// Compares the remaining burst time of one pcb with another. results in increasing order
-static int compare_remaining_time(const void* a, const void* b)
-{
-	int result1;
-	int result2;
-
-	if (a == NULL) { result1 = 0; }
-	else
-	{
-		const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
-		result1 = p1->remaining_burst_time;
-	}
-
-	if (b == NULL) { result2 = 0; }
-	else
-	{
-		const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
-		result2 = p2->remaining_burst_time;
-	}
-
-	if (result1 > result2) { return 1; }
-	if (result1 < result2) { return -1; }
-	else { return 0; }
 }
 
 //I needed a way to requeue objects for round robin where it factors in if the object has arrived or not.
@@ -115,27 +91,45 @@ bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
 	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
 	size_t number_of_processes = dyn_array_size(ready_queue);
 
-	dyn_array_sort(ready_queue, compare_arrival_descending); // Sort ready_queue by decreasing arrival time
-	// This is done because popping from the back is less expensive than the front
-
 	// Calculate and populate ScheduleResult_t fields
 	float total_waiting_time = 0;
 	float total_turnaround_time = 0;
 	float current_time = 0;
-
+    uint32_t earliest_arrival;
+    uint32_t earliest_available_arrival;
+    ssize_t index;
 	while (!dyn_array_empty(ready_queue))
 	{
-		ProcessControlBlock_t pcb;
-		if (!dyn_array_extract_back(ready_queue, &pcb)) { return false; }
+        earliest_arrival = UINT32_MAX;
+        earliest_available_arrival = UINT32_MAX;
+        index = -1;
 
-		// If the next process hasn't arrived yet, wait for it
-		if (current_time < pcb.arrival) { current_time = pcb.arrival; }
+        // finds the index of the process to run next
+        for (size_t i = 0; i < dyn_array_size(ready_queue); i++)
+        {
+            ProcessControlBlock_t* pcb = (ProcessControlBlock_t*)dyn_array_at(ready_queue, i);
+            if (pcb == NULL) { return false; }
+            if (pcb->arrival < earliest_arrival) { earliest_arrival = pcb->arrival; }
 
-		total_waiting_time += current_time - pcb.arrival;
-		total_turnaround_time += current_time - pcb.arrival + pcb.remaining_burst_time;
-		current_time += pcb.remaining_burst_time;
+            if (pcb->arrival < earliest_available_arrival && pcb->arrival <= current_time)
+            {
+                earliest_available_arrival = pcb->arrival;
+                index = i;
+            }
+        }
+
+        // If no process has arrived, skip ahead
+        if (index == -1) { current_time = earliest_arrival; }
+
+        else
+        {
+            ProcessControlBlock_t running_pcb;
+            if (!dyn_array_extract(ready_queue, index, &running_pcb)) { return false; }
+            total_waiting_time += current_time - running_pcb.arrival;
+            total_turnaround_time += current_time - running_pcb.arrival + running_pcb.remaining_burst_time;
+            current_time += running_pcb.remaining_burst_time;
+        }
 	}
-
 	result->average_waiting_time = total_waiting_time / number_of_processes;
 	result->average_turnaround_time = total_turnaround_time / number_of_processes;
 	result->total_run_time = current_time;
@@ -147,44 +141,49 @@ bool shortest_job_first(dyn_array_t *ready_queue, ScheduleResult_t *result)
 {
 	if (ready_queue == NULL || result == NULL) { return false; }
 	else if (dyn_array_empty(ready_queue) || dyn_array_data_size(ready_queue) == 0) { return false; }
-	
-	if (!dyn_array_sort(ready_queue, compare_remaining_time)) { return false; } // Sort ready_queue by increasing remaining burst time
 
 	size_t number_of_processes = dyn_array_size(ready_queue);
 	float total_waiting_time = 0;
 	float total_turnaround_time = 0;
 	float current_time = 0;
-	bool process_ran;
-	uint32_t earliest_arrival;
+    uint32_t shortest_burst_time;
+    uint32_t earliest_arrival;
+    ssize_t index;
+    while (!dyn_array_empty(ready_queue))
+    {
+        earliest_arrival = UINT32_MAX;
+        shortest_burst_time = UINT32_MAX;
+        index = -1;
 
-	while (!dyn_array_empty(ready_queue))
-	{
-		process_ran = false;
-		earliest_arrival = UINT32_MAX;
-		for (size_t i = 0; i < dyn_array_size(ready_queue); i++)
-		{
-			ProcessControlBlock_t* pcb = (ProcessControlBlock_t*)dyn_array_at(ready_queue, i);
-			if (pcb == NULL) { return false; }
-			earliest_arrival = earliest_arrival < pcb->arrival ? earliest_arrival : pcb->arrival;
+        // Finds the index of the next process to run
+        for (size_t i = 0; i < dyn_array_size(ready_queue); i++)
+        {
+            ProcessControlBlock_t* pcb = (ProcessControlBlock_t*)dyn_array_at(ready_queue, i);
+            if (pcb == NULL) { return false; }
+            if (pcb->arrival < earliest_arrival) { earliest_arrival = pcb->arrival; }
 
-			// A process is ready and can be run
-			if (pcb->arrival <= current_time)
-			{
-				total_waiting_time += current_time - pcb->arrival;
-				total_turnaround_time += current_time - pcb->arrival + pcb->remaining_burst_time;
-				current_time += pcb->remaining_burst_time;
-				process_ran = true;
-				if (!dyn_array_erase(ready_queue, i)) { return false; }
-				break;
-			}
-		}
+            if (pcb->remaining_burst_time < shortest_burst_time && pcb->arrival <= current_time)
+            {
+                shortest_burst_time = pcb->remaining_burst_time;
+                index = i;
+            }
+        }
 
-		// A process wasn't run, therefore no processes have arrived. Skip ahead
-		if (!process_ran)
-		{
-			current_time = earliest_arrival;
-		}
-	}
+        // If nothing has arrived yet, skip ahead
+        if (index == -1)
+        {
+            current_time = earliest_arrival;
+        }
+        // If there is a process that can be run, run it
+        else
+        {
+            ProcessControlBlock_t running_pcb;
+            if (!dyn_array_extract(ready_queue, index, &running_pcb)) { return false; }
+            total_waiting_time += current_time - running_pcb.arrival;
+            total_turnaround_time += current_time - running_pcb.arrival + running_pcb.remaining_burst_time;
+            current_time += running_pcb.remaining_burst_time;
+        }
+    }
 	result->average_waiting_time = total_waiting_time / number_of_processes;
 	result->average_turnaround_time = total_turnaround_time / number_of_processes;
 	result->total_run_time = current_time;
