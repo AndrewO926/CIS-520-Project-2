@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.21)
+enable_testing()
 
 #ALL OF THE SPECIFIED NAMES IN THIS CMAKE ARE REQUIRED.
 #Set the project name variable to hw2.
@@ -35,3 +37,4 @@ target_compile_definitions(${PROJECT_NAME}_test PRIVATE)
 #Link ${PROJECT_NAME}_test with dyn_array and gtest and pthread libraries
 target_link_libraries(${PROJECT_NAME}_test gtest pthread dyn_array)
 
+add_test(NAME hw2_tests COMMAND ${PROJECT_NAME}_test)
