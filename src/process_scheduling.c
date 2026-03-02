@@ -14,23 +14,13 @@ static bool read_exact(int fd, void *buffer, size_t bytes);
 // Compares the arrival time of one pcb with another. results in increasing order
 static int compare_arrival_ascending(const void* a, const void* b)
 {
-	int result1;
-	int result2;
+    if (a == NULL || b == NULL) { return 0; }
 
-	if (a == NULL) { result1 = 0; }
-	else
-	{
-		const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
-		result1 = p1->arrival;
-	}
+	const ProcessControlBlock_t* p1 = (const ProcessControlBlock_t*)a;
+	uint32_t result1 = p1->arrival;
+	const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
+	uint32_t result2 = p2->arrival;
 
-	if (b == NULL) { result2 = 0; }
-	else
-	{
-		const ProcessControlBlock_t* p2 = (const ProcessControlBlock_t*)b;
-		result2 = p2->arrival;
-	}
-	
 	if (result1 > result2) { return 1; }
 	if (result1 < result2) {return -1; }
 	else { return 0; }
@@ -66,6 +56,14 @@ void virtual_cpu(ProcessControlBlock_t *process_control_block)
 	--process_control_block->remaining_burst_time;
 }
 
+// Reads exactly the specified number of bytes from a file descriptor
+// \param fd file descriptor to read from
+// \param buffer destination memory where the read bytes will be stored
+// \param bytes total number of bytes that must be read into buffer
+// \return true if the requested number of bytes were successfully read,
+//         else false if an error occurs or EOF is reached before completion
+// This function repeatedly calls read() until either all requested bytes
+// are obtained or a failure condition occurs
 static bool read_exact(int fd, void *buffer, size_t bytes)
 {
     size_t total = 0;
@@ -80,7 +78,14 @@ static bool read_exact(int fd, void *buffer, size_t bytes)
     }
 
     return true;
-} 
+}
+
+// Runs the First Come First Served Process Scheduling algorithm over the incoming ready_queue
+// \param ready queue a dyn_array of type ProcessControlBlock_t
+// that contain be up to N elements
+// \param result used for first come first served stat tracking \ref ScheduleResult_t
+// \return true if function ran successful else false for an error
+// There is no guarantee that the passed dyn_array_t will be the result of your implementation of load_process_control_blocks
 bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result) 
 {
 	if (ready_queue == NULL || result == NULL) { return false; }
@@ -117,6 +122,7 @@ bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
         // If no process has arrived, skip ahead
         if (index == -1) { current_time = earliest_arrival; }
 
+        // If running a process, gather the data required to make calculations
         else
         {
             ProcessControlBlock_t running_pcb;
@@ -133,6 +139,11 @@ bool first_come_first_serve(dyn_array_t *ready_queue, ScheduleResult_t *result)
 	return true;
 }
 
+// Runs the Shortest Job First Scheduling algorithm over the incoming ready_queue
+// \param ready queue a dyn_array of type ProcessControlBlock_t that contain be up to N elements
+// \param result used for shortest job first stat tracking \ref ScheduleResult_t
+// \return true if function ran successful else false for an error
+// There is no guarantee that the passed dyn_array_t will be the result of your implementation of load_process_control_blocks
 bool shortest_job_first(dyn_array_t *ready_queue, ScheduleResult_t *result) 
 {
 	if (ready_queue == NULL || result == NULL) { return false; }
@@ -170,7 +181,7 @@ bool shortest_job_first(dyn_array_t *ready_queue, ScheduleResult_t *result)
         {
             current_time = earliest_arrival;
         }
-        // If there is a process that can be run, run it
+        // If there is a process that can be run, run it and gather the necessary data
         else
         {
             ProcessControlBlock_t running_pcb;
@@ -187,6 +198,11 @@ bool shortest_job_first(dyn_array_t *ready_queue, ScheduleResult_t *result)
 	return true;
 }
 
+// Runs the non-preemptive Priority algorithm over the incoming ready_queue
+// \param ready queue a dyn_array of type ProcessControlBlock_t that contain be up to N elements
+// \param result used for shortest job first stat tracking \ref ScheduleResult_t
+// \return true if function ran successful else false for an error
+// There is no guarantee that the passed dyn_array_t will be the result of your implementation of load_process_control_blocks
 bool priority(dyn_array_t *ready_queue, ScheduleResult_t *result) 
 {
     // 1) Basic parameter validation (matches your FCFS/RR style)
@@ -287,6 +303,13 @@ bool priority(dyn_array_t *ready_queue, ScheduleResult_t *result)
 
     return true;
 }
+
+// Runs the Round Robin Process Scheduling algorithm over the incoming ready_queue
+// \param ready queue a dyn_array of type ProcessControlBlock_t that contain be up to N elements
+// \param result used for round robin stat tracking \ref ScheduleResult_t
+// \param the quantum
+// \return true if function ran successful else false for an error
+// There is no guarantee that the passed dyn_array_t will be the result of your implementation of load_process_control_blocks
 bool round_robin(dyn_array_t *ready_queue, ScheduleResult_t *result, size_t quantum) 
 {
     if (ready_queue == NULL || result == NULL || quantum == 0) { return false; }
@@ -357,6 +380,10 @@ bool round_robin(dyn_array_t *ready_queue, ScheduleResult_t *result, size_t quan
 	return true;
 }
 
+// Reads the PCB values from the binary file into ProcessControlBlock_t
+// for N number of PCB entries stored in the file
+// \param input_file the file containing the PCB burst times
+// \return a populated dyn_array of ProcessControlBlocks if function ran successful else NULL for an error
 dyn_array_t *load_process_control_blocks(const char *input_file) 
 {
 	if (input_file == NULL) return NULL;
@@ -405,6 +432,11 @@ dyn_array_t *load_process_control_blocks(const char *input_file)
     return arr;
 }
 
+// Runs the preemptive Shortest Remaining Time First Process Scheduling algorithm over the incoming ready_queue
+// \param ready queue a dyn_array of type ProcessControlBlock_t that contain be up to N elements
+// \param result used for shortest job first stat tracking \ref ScheduleResult_t
+// \return true if function ran successful else false for an error
+// There is no guarantee that the passed dyn_array_t will be the result of your implementation of load_process_control_blocks
 bool shortest_remaining_time_first(dyn_array_t *ready_queue, ScheduleResult_t *result) 
 {
     if (ready_queue == NULL || result == NULL) { return false; }
